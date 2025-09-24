@@ -1,26 +1,36 @@
 // Author: Manuel Maddaluno <manuel.maddaluno@unina.it>
+// Author: Manuel Maddaluno <valerio.didomenico@unina.it>
 // Description: This module is a wrapper for a single DDR4 channel.
 //              It includes :
 //                 - A clock converter to increase the frequency to 300 MHz
 //                 - A datawidth converter to increase the datawidth to 512 bit
-//                 - A System-cache
+//                 - An optional System Cache (enabled if ENABLE_CACHE=1)
 //                 - A DDR4 (MIG) IP
 //
-//              It has the following sub-architecture
+//              Depending on the ENABLE_CACHE parameter, the architecture
+//              instantiates either the System Cache (ENABLE_CACHE=1) or a
+//              direct Data Width Converter (ENABLE_CACHE=0) before connecting
+//              to the Clock Converter and DDR4 (MIG).
 //
-//
-//             ADDR: XLEN  _______________            ADDR: XLEN    ____________           ADDR: 64 bit    ____________  
-//   250 MHz   DATA: 512  |     System    | 250 MHz   DATA: 512    |   Clock    | 300 MHz  DATA: 512 bit  |            |
-// ---------------------->|     Cache     |----------------------->| Converter  |------------------------>| DDR4 (MIG) |
-//                        |_______________|                        |____________|                         |____________|
-//
+//              It has the following sub-architecture                                 
+//                                
+//                                                           _____________            ADDR: XLEN    ____________           ADDR: 64 bit    ____________  
+//                                    ENABLE_CACHE = 1      |   System    | 250 MHz   DATA: 512    |   Clock    | 300 MHz  DATA: 512 bit  |            |
+//                              --------------------------->|    Cache    |----------------------->| Converter  |------------------------>| DDR4 (MIG) |
+//             ADDR: XLEN       |                           |_____________|                        |____________|                         |____________|
+//   250 MHz   DATA: 64         |
+// -----------------------------                                                       
+//                              |                            _____________            ADDR: XLEN    ____________           ADDR: 64 bit    ____________ 
+//                              |     ENABLE_CACHE = 0      |    Dwidth   | 250 MHz   DATA: 512    |   Clock    | 300 MHz  DATA: 512 bit  |            |
+//                              --------------------------->|  Converter  |----------------------->| Converter  |------------------------>| DDR4 (MIG) |
+//                                                          |_____________|                        |____________|                         |____________|
 
 
 `include "uninasoc_pcie.svh"
 `include "uninasoc_ddr4.svh"
 
 module ddr4_channel_wrapper # (
-    parameter int unsigned    ENABLE_CACHE      = 1,
+    parameter int unsigned    ENABLE_CACHE      = 0,
     parameter int unsigned    LOCAL_DATA_WIDTH  = 32,
     parameter int unsigned    LOCAL_ADDR_WIDTH  = 32,
     parameter int unsigned    LOCAL_ID_WIDTH    = 32
@@ -66,113 +76,203 @@ module ddr4_channel_wrapper # (
     // DDR4 34-bits address signals
     logic [DDR4_CHANNEL_ADDRESS_WIDTH-1:0] ddr4_axi_awaddr;
     logic [DDR4_CHANNEL_ADDRESS_WIDTH-1:0] ddr4_axi_araddr;
+    
+    // AXI bus from the cache to the clock converter
+    `DECLARE_AXI_BUS(to_clk_conv, DDR4_CHANNEL_DATA_WIDTH, LOCAL_ADDR_WIDTH, LOCAL_ID_WIDTH)
 
     // AXI bus from the clock converter to the dwidth converter
     `DECLARE_AXI_BUS(clk_conv_to_dwidth_conv, LOCAL_DATA_WIDTH, LOCAL_ADDR_WIDTH, LOCAL_ID_WIDTH)
     
-    // AXI bus from the dwidth converter to the cache
-    `DECLARE_AXI_BUS(dwidth_conv_to_cache, DDR4_CHANNEL_DATA_WIDTH, LOCAL_ADDR_WIDTH, LOCAL_ID_WIDTH)
-
-    // AXI bus from the cache to the clock converter
-    `DECLARE_AXI_BUS(cache_to_clk_conv, DDR4_CHANNEL_DATA_WIDTH, LOCAL_ADDR_WIDTH, LOCAL_ID_WIDTH)
-    
     // AXI bus from the cache to the DDR4
     `DECLARE_AXI_BUS(clk_conv_to_ddr4, DDR4_CHANNEL_DATA_WIDTH, LOCAL_ADDR_WIDTH, LOCAL_ID_WIDTH)
-
-
-    // Dwidth converter master ID signals assigned to 0
-    // Since the AXI data width converter has a reordering depth of 1 it doesn't have ID in its master ports - for more details see the documentation
-    // Thus, we assign 0 to all these signals that go to the DDR MIG
-    //assign dwidth_conv_to_ddr4_axi_awid = '0;
-    //assign dwidth_conv_to_ddr4_axi_bid  = '0;
-    //assign dwidth_conv_to_ddr4_axi_arid = '0;
-    //assign dwidth_conv_to_ddr4_axi_rid  = '0;
     
-    xlnx_system_cache_0 system_cache_u (
+    generate
+    if (ENABLE_CACHE == 1 ) begin : with_cache
 
-        .ACLK               (clock_i),                           // input wire ACLK
-        .ARESETN            (reset_ni),                       // input wire ARESETN
-        .Initializing       (    ),                      // output wire Initializing
-        .S0_AXI_GEN_AWID    (s_axi_awid),        // input wire [2 : 0] S0_AXI_GEN_AWID
-        .S0_AXI_GEN_AWADDR  (s_axi_awaddr),    // input wire [31 : 0] S0_AXI_GEN_AWADDR
-        .S0_AXI_GEN_AWLEN   (s_axi_awlen),      // input wire [7 : 0] S0_AXI_GEN_AWLEN
-        .S0_AXI_GEN_AWSIZE  (s_axi_awsize),    // input wire [2 : 0] S0_AXI_GEN_AWSIZE
-        .S0_AXI_GEN_AWBURST (s_axi_awburst),  // input wire [1 : 0] S0_AXI_GEN_AWBURST
-        .S0_AXI_GEN_AWLOCK  (s_axi_awlock),    // input wire S0_AXI_GEN_AWLOCK
-        .S0_AXI_GEN_AWCACHE (s_axi_awcache),  // input wire [3 : 0] S0_AXI_GEN_AWCACHE
-        .S0_AXI_GEN_AWPROT  (s_axi_awprot),    // input wire [2 : 0] S0_AXI_GEN_AWPROT
-        .S0_AXI_GEN_AWQOS   (s_axi_awqos),      // input wire [3 : 0] S0_AXI_GEN_AWQOS
-        .S0_AXI_GEN_AWVALID (s_axi_awvalid),  // input wire S0_AXI_GEN_AWVALID
-        .S0_AXI_GEN_AWREADY (s_axi_awready),  // output wire S0_AXI_GEN_AWREADY
-        .S0_AXI_GEN_AWUSER  (s_axi_awuser),    // input wire [31 : 0] S0_AXI_GEN_AWUSER
-        .S0_AXI_GEN_WDATA   (s_axi_wdata),      // input wire [511 : 0] S0_AXI_GEN_WDATA
-        .S0_AXI_GEN_WSTRB   (s_axi_wstrb),      // input wire [63 : 0] S0_AXI_GEN_WSTRB
-        .S0_AXI_GEN_WLAST   (s_axi_wlast),      // input wire S0_AXI_GEN_WLAST
-        .S0_AXI_GEN_WVALID  (s_axi_wvalid),    // input wire S0_AXI_GEN_WVALID
-        .S0_AXI_GEN_WREADY  (s_axi_wready),    // output wire S0_AXI_GEN_WREADY
-        .S0_AXI_GEN_BRESP   (s_axi_bresp),      // output wire [1 : 0] S0_AXI_GEN_BRESP
-        .S0_AXI_GEN_BID     (s_axi_bid),          // output wire [2 : 0] S0_AXI_GEN_BID
-        .S0_AXI_GEN_BVALID  (s_axi_bvalid),    // output wire S0_AXI_GEN_BVALID
-        .S0_AXI_GEN_BREADY  (s_axi_bready),    // input wire S0_AXI_GEN_BREADY
-        .S0_AXI_GEN_ARID    (s_axi_arid),        // input wire [2 : 0] S0_AXI_GEN_ARID
-        .S0_AXI_GEN_ARADDR  (s_axi_araddr),    // input wire [31 : 0] S0_AXI_GEN_ARADDR
-        .S0_AXI_GEN_ARLEN   (s_axi_arlen),      // input wire [7 : 0] S0_AXI_GEN_ARLEN
-        .S0_AXI_GEN_ARSIZE  (s_axi_arsize),    // input wire [2 : 0] S0_AXI_GEN_ARSIZE
-        .S0_AXI_GEN_ARBURST (s_axi_arburst),  // input wire [1 : 0] S0_AXI_GEN_ARBURST
-        .S0_AXI_GEN_ARLOCK  (s_axi_arlock),    // input wire S0_AXI_GEN_ARLOCK
-        .S0_AXI_GEN_ARCACHE (s_axi_arcache),  // input wire [3 : 0] S0_AXI_GEN_ARCACHE
-        .S0_AXI_GEN_ARPROT  (s_axi_arprot),    // input wire [2 : 0] S0_AXI_GEN_ARPROT
-        .S0_AXI_GEN_ARQOS   (s_axi_arqos),      // input wire [3 : 0] S0_AXI_GEN_ARQOS
-        .S0_AXI_GEN_ARVALID (s_axi_arvalid),  // input wire S0_AXI_GEN_ARVALID
-        .S0_AXI_GEN_ARREADY (s_axi_arready),  // output wire S0_AXI_GEN_ARREADY
-        .S0_AXI_GEN_ARUSER  (s_axi_aruser),    // input wire [31 : 0] S0_AXI_GEN_ARUSER
-        .S0_AXI_GEN_RID     (s_axi_rid),          // output wire [2 : 0] S0_AXI_GEN_RID
-        .S0_AXI_GEN_RDATA   (s_axi_rdata),      // output wire [511 : 0] S0_AXI_GEN_RDATA
-        .S0_AXI_GEN_RRESP   (s_axi_rresp),      // output wire [1 : 0] S0_AXI_GEN_RRESP
-        .S0_AXI_GEN_RLAST   (s_axi_rlast),      // output wire S0_AXI_GEN_RLAST
-        .S0_AXI_GEN_RVALID  (s_axi_rvalid),    // output wire S0_AXI_GEN_RVALID
-        .S0_AXI_GEN_RREADY  (s_axi_rready),    // input wire S0_AXI_GEN_RREADY
-        .M0_AXI_AWID        (cache_to_clk_conv_axi_awid),                // output wire [0 : 0] M0_AXI_AWID
-        .M0_AXI_AWADDR      (cache_to_clk_conv_axi_awaddr),            // output wire [31 : 0] M0_AXI_AWADDR
-        .M0_AXI_AWLEN       (cache_to_clk_conv_axi_awlen),              // output wire [7 : 0] M0_AXI_AWLEN
-        .M0_AXI_AWSIZE      (cache_to_clk_conv_axi_awsize),            // output wire [2 : 0] M0_AXI_AWSIZE
-        .M0_AXI_AWBURST     (cache_to_clk_conv_axi_awburst),          // output wire [1 : 0] M0_AXI_AWBURST
-        .M0_AXI_AWLOCK      (cache_to_clk_conv_axi_awlock),            // output wire M0_AXI_AWLOCK
-        .M0_AXI_AWCACHE     (cache_to_clk_conv_axi_awcache),          // output wire [3 : 0] M0_AXI_AWCACHE
-        .M0_AXI_AWPROT      (cache_to_clk_conv_axi_awprot),            // output wire [2 : 0] M0_AXI_AWPROT
-        .M0_AXI_AWQOS       (cache_to_clk_conv_axi_awqos),              // output wire [3 : 0] M0_AXI_AWQOS
-        .M0_AXI_AWVALID     (cache_to_clk_conv_axi_awvalid),          // output wire M0_AXI_AWVALID
-        .M0_AXI_AWREADY     (cache_to_clk_conv_axi_awready),          // input wire M0_AXI_AWREADY
-        .M0_AXI_WDATA       (cache_to_clk_conv_axi_wdata),              // output wire [511 : 0] M0_AXI_WDATA
-        .M0_AXI_WSTRB       (cache_to_clk_conv_axi_wstrb),              // output wire [3 : 0] M0_AXI_WSTRB
-        .M0_AXI_WLAST       (cache_to_clk_conv_axi_wlast),              // output wire M0_AXI_WLAST
-        .M0_AXI_WVALID      (cache_to_clk_conv_axi_wvalid),            // output wire M0_AXI_WVALID
-        .M0_AXI_WREADY      (cache_to_clk_conv_axi_wready),            // input wire M0_AXI_WREADY
-        .M0_AXI_BRESP       (cache_to_clk_conv_axi_bresp),              // input wire [1 : 0] M0_AXI_BRESP
-        .M0_AXI_BID         (cache_to_clk_conv_axi_bid),                  // input wire [0 : 0] M0_AXI_BID
-        .M0_AXI_BVALID      (cache_to_clk_conv_axi_bvalid),            // input wire M0_AXI_BVALID
-        .M0_AXI_BREADY      (cache_to_clk_conv_axi_bready),            // output wire M0_AXI_BREADY
-        .M0_AXI_ARID        (cache_to_clk_conv_axi_arid),                // output wire [0 : 0] M0_AXI_ARID
-        .M0_AXI_ARADDR      (cache_to_clk_conv_axi_araddr),            // output wire [31 : 0] M0_AXI_ARADDR
-        .M0_AXI_ARLEN       (cache_to_clk_conv_axi_arlen),              // output wire [7 : 0] M0_AXI_ARLEN
-        .M0_AXI_ARSIZE      (cache_to_clk_conv_axi_arsize),            // output wire [2 : 0] M0_AXI_ARSIZE
-        .M0_AXI_ARBURST     (cache_to_clk_conv_axi_arburst),          // output wire [1 : 0] M0_AXI_ARBURST
-        .M0_AXI_ARLOCK      (cache_to_clk_conv_axi_arlock),            // output wire M0_AXI_ARLOCK
-        .M0_AXI_ARCACHE     (cache_to_clk_conv_axi_arcache),          // output wire [3 : 0] M0_AXI_ARCACHE
-        .M0_AXI_ARPROT      (cache_to_clk_conv_axi_arprot),            // output wire [2 : 0] M0_AXI_ARPROT
-        .M0_AXI_ARQOS       (cache_to_clk_conv_axi_arqos),              // output wire [3 : 0] M0_AXI_ARQOS
-        .M0_AXI_ARVALID     (cache_to_clk_conv_axi_arvalid),          // output wire M0_AXI_ARVALID
-        .M0_AXI_ARREADY     (cache_to_clk_conv_axi_arready),          // input wire M0_AXI_ARREADY
-        .M0_AXI_RID         (cache_to_clk_conv_axi_rid),                  // input wire [0 : 0] M0_AXI_RID
-        .M0_AXI_RDATA       (cache_to_clk_conv_axi_rdata),              // input wire [511 : 0] M0_AXI_RDATA
-        .M0_AXI_RRESP       (cache_to_clk_conv_axi_rresp),              // input wire [1 : 0] M0_AXI_RRESP
-        .M0_AXI_RLAST       (cache_to_clk_conv_axi_rlast),              // input wire M0_AXI_RLAST
-        .M0_AXI_RVALID      (cache_to_clk_conv_axi_rvalid),            // input wire M0_AXI_RVALID
-        .M0_AXI_RREADY      (cache_to_clk_conv_axi_rready)            // output wire M0_AXI_RREADY
-        );
+            xlnx_system_cache_0 system_cache_u (
+
+                .ACLK               ( clock_i                 ),                           // input wire ACLK
+                .ARESETN            ( reset_ni                ),                       // input wire ARESETN
+                .Initializing       ( /* empty */             ),                      // output wire Initializing
+                .S0_AXI_GEN_AWID    ( s_axi_awid              ),        // input wire [2 : 0] S0_AXI_GEN_AWID
+                .S0_AXI_GEN_AWADDR  ( s_axi_awaddr            ),    // input wire [31 : 0] S0_AXI_GEN_AWADDR
+                .S0_AXI_GEN_AWLEN   ( s_axi_awlen             ),      // input wire [7 : 0] S0_AXI_GEN_AWLEN
+                .S0_AXI_GEN_AWSIZE  ( s_axi_awsize            ),    // input wire [2 : 0] S0_AXI_GEN_AWSIZE
+                .S0_AXI_GEN_AWBURST ( s_axi_awburst           ),  // input wire [1 : 0] S0_AXI_GEN_AWBURST
+                .S0_AXI_GEN_AWLOCK  ( s_axi_awlock            ),    // input wire S0_AXI_GEN_AWLOCK
+                .S0_AXI_GEN_AWCACHE ( s_axi_awcache           ),  // input wire [3 : 0] S0_AXI_GEN_AWCACHE
+                .S0_AXI_GEN_AWPROT  ( s_axi_awprot            ),    // input wire [2 : 0] S0_AXI_GEN_AWPROT
+                .S0_AXI_GEN_AWQOS   ( 0                       ),      // input wire [3 : 0] S0_AXI_GEN_AWQOS
+                .S0_AXI_GEN_AWVALID ( s_axi_awvalid           ),  // input wire S0_AXI_GEN_AWVALID
+                .S0_AXI_GEN_AWREADY ( s_axi_awready           ),  // output wire S0_AXI_GEN_AWREADY
+                .S0_AXI_GEN_AWUSER  ( s_axi_awuser            ),    // input wire [31 : 0] S0_AXI_GEN_AWUSER
+                .S0_AXI_GEN_WDATA   ( s_axi_wdata             ),      // input wire [511 : 0] S0_AXI_GEN_WDATA
+                .S0_AXI_GEN_WSTRB   ( s_axi_wstrb             ),      // input wire [63 : 0] S0_AXI_GEN_WSTRB
+                .S0_AXI_GEN_WLAST   ( s_axi_wlast             ),      // input wire S0_AXI_GEN_WLAST
+                .S0_AXI_GEN_WVALID  ( s_axi_wvalid            ),    // input wire S0_AXI_GEN_WVALID
+                .S0_AXI_GEN_WREADY  ( s_axi_wready            ),    // output wire S0_AXI_GEN_WREADY
+                .S0_AXI_GEN_BRESP   ( s_axi_bresp             ),      // output wire [1 : 0] S0_AXI_GEN_BRESP
+                .S0_AXI_GEN_BID     ( s_axi_bid               ),          // output wire [2 : 0] S0_AXI_GEN_BID
+                .S0_AXI_GEN_BVALID  ( s_axi_bvalid            ),    // output wire S0_AXI_GEN_BVALID
+                .S0_AXI_GEN_BREADY  ( s_axi_bready            ),    // input wire S0_AXI_GEN_BREADY
+                .S0_AXI_GEN_ARID    ( s_axi_arid              ),        // input wire [2 : 0] S0_AXI_GEN_ARID
+                .S0_AXI_GEN_ARADDR  ( s_axi_araddr            ),    // input wire [31 : 0] S0_AXI_GEN_ARADDR
+                .S0_AXI_GEN_ARLEN   ( s_axi_arlen             ),      // input wire [7 : 0] S0_AXI_GEN_ARLEN
+                .S0_AXI_GEN_ARSIZE  ( s_axi_arsize            ),    // input wire [2 : 0] S0_AXI_GEN_ARSIZE
+                .S0_AXI_GEN_ARBURST ( s_axi_arburst           ),  // input wire [1 : 0] S0_AXI_GEN_ARBURST
+                .S0_AXI_GEN_ARLOCK  ( s_axi_arlock            ),    // input wire S0_AXI_GEN_ARLOCK
+                .S0_AXI_GEN_ARCACHE ( s_axi_arcache           ),  // input wire [3 : 0] S0_AXI_GEN_ARCACHE
+                .S0_AXI_GEN_ARPROT  ( s_axi_arprot            ),    // input wire [2 : 0] S0_AXI_GEN_ARPROT
+                .S0_AXI_GEN_ARQOS   ( 0                       ),      // input wire [3 : 0] S0_AXI_GEN_ARQOS
+                .S0_AXI_GEN_ARVALID ( s_axi_arvalid           ),  // input wire S0_AXI_GEN_ARVALID
+                .S0_AXI_GEN_ARREADY ( s_axi_arready           ),  // output wire S0_AXI_GEN_ARREADY
+                .S0_AXI_GEN_ARUSER  ( s_axi_aruser            ),    // input wire [31 : 0] S0_AXI_GEN_ARUSER
+                .S0_AXI_GEN_RID     ( s_axi_rid               ),          // output wire [2 : 0] S0_AXI_GEN_RID
+                .S0_AXI_GEN_RDATA   ( s_axi_rdata             ),      // output wire [511 : 0] S0_AXI_GEN_RDATA
+                .S0_AXI_GEN_RRESP   ( s_axi_rresp             ),      // output wire [1 : 0] S0_AXI_GEN_RRESP
+                .S0_AXI_GEN_RLAST   ( s_axi_rlast             ),      // output wire S0_AXI_GEN_RLAST
+                .S0_AXI_GEN_RVALID  ( s_axi_rvalid            ),    // output wire S0_AXI_GEN_RVALID
+                .S0_AXI_GEN_RREADY  ( s_axi_rready            ),    // input wire S0_AXI_GEN_RREADY
+                .M0_AXI_AWID        ( to_clk_conv_axi_awid    ),                // output wire [0 : 0] M0_AXI_AWID
+                .M0_AXI_AWADDR      ( to_clk_conv_axi_awaddr  ),            // output wire [31 : 0] M0_AXI_AWADDR
+                .M0_AXI_AWLEN       ( to_clk_conv_axi_awlen   ),              // output wire [7 : 0] M0_AXI_AWLEN
+                .M0_AXI_AWSIZE      ( to_clk_conv_axi_awsize  ),            // output wire [2 : 0] M0_AXI_AWSIZE
+                .M0_AXI_AWBURST     ( to_clk_conv_axi_awburst ),          // output wire [1 : 0] M0_AXI_AWBURST
+                .M0_AXI_AWLOCK      ( to_clk_conv_axi_awlock  ),            // output wire M0_AXI_AWLOCK
+                .M0_AXI_AWCACHE     ( to_clk_conv_axi_awcache ),          // output wire [3 : 0] M0_AXI_AWCACHE
+                .M0_AXI_AWPROT      ( to_clk_conv_axi_awprot  ),            // output wire [2 : 0] M0_AXI_AWPROT
+                .M0_AXI_AWQOS       ( to_clk_conv_axi_awqos   ),              // output wire [3 : 0] M0_AXI_AWQOS
+                .M0_AXI_AWVALID     ( to_clk_conv_axi_awvalid ),          // output wire M0_AXI_AWVALID
+                .M0_AXI_AWREADY     ( to_clk_conv_axi_awready ),          // input wire M0_AXI_AWREADY
+                .M0_AXI_WDATA       ( to_clk_conv_axi_wdata   ),              // output wire [511 : 0] M0_AXI_WDATA
+                .M0_AXI_WSTRB       ( to_clk_conv_axi_wstrb   ),              // output wire [3 : 0] M0_AXI_WSTRB
+                .M0_AXI_WLAST       ( to_clk_conv_axi_wlast   ),              // output wire M0_AXI_WLAST
+                .M0_AXI_WVALID      ( to_clk_conv_axi_wvalid  ),            // output wire M0_AXI_WVALID
+                .M0_AXI_WREADY      ( to_clk_conv_axi_wready  ),            // input wire M0_AXI_WREADY
+                .M0_AXI_BRESP       ( to_clk_conv_axi_bresp   ),              // input wire [1 : 0] M0_AXI_BRESP
+                .M0_AXI_BID         ( to_clk_conv_axi_bid     ),                  // input wire [0 : 0] M0_AXI_BID
+                .M0_AXI_BVALID      ( to_clk_conv_axi_bvalid  ),            // input wire M0_AXI_BVALID
+                .M0_AXI_BREADY      ( to_clk_conv_axi_bready  ),            // output wire M0_AXI_BREADY
+                .M0_AXI_ARID        ( to_clk_conv_axi_arid    ),                // output wire [0 : 0] M0_AXI_ARID
+                .M0_AXI_ARADDR      ( to_clk_conv_axi_araddr  ),            // output wire [31 : 0] M0_AXI_ARADDR
+                .M0_AXI_ARLEN       ( to_clk_conv_axi_arlen   ),              // output wire [7 : 0] M0_AXI_ARLEN
+                .M0_AXI_ARSIZE      ( to_clk_conv_axi_arsize  ),            // output wire [2 : 0] M0_AXI_ARSIZE
+                .M0_AXI_ARBURST     ( to_clk_conv_axi_arburst ),          // output wire [1 : 0] M0_AXI_ARBURST
+                .M0_AXI_ARLOCK      ( to_clk_conv_axi_arlock  ),            // output wire M0_AXI_ARLOCK
+                .M0_AXI_ARCACHE     ( to_clk_conv_axi_arcache ),          // output wire [3 : 0] M0_AXI_ARCACHE
+                .M0_AXI_ARPROT      ( to_clk_conv_axi_arprot  ),            // output wire [2 : 0] M0_AXI_ARPROT
+                .M0_AXI_ARQOS       ( to_clk_conv_axi_arqos   ),              // output wire [3 : 0] M0_AXI_ARQOS
+                .M0_AXI_ARVALID     ( to_clk_conv_axi_arvalid ),          // output wire M0_AXI_ARVALID
+                .M0_AXI_ARREADY     ( to_clk_conv_axi_arready ),          // input wire M0_AXI_ARREADY
+                .M0_AXI_RID         ( to_clk_conv_axi_rid     ),                  // input wire [0 : 0] M0_AXI_RID
+                .M0_AXI_RDATA       ( to_clk_conv_axi_rdata   ),              // input wire [511 : 0] M0_AXI_RDATA
+                .M0_AXI_RRESP       ( to_clk_conv_axi_rresp   ),              // input wire [1 : 0] M0_AXI_RRESP
+                .M0_AXI_RLAST       ( to_clk_conv_axi_rlast   ),              // input wire M0_AXI_RLAST
+                .M0_AXI_RVALID      ( to_clk_conv_axi_rvalid  ),            // input wire M0_AXI_RVALID
+                .M0_AXI_RREADY      ( to_clk_conv_axi_rready  )            // output wire M0_AXI_RREADY
+                );
+    
+    end else begin : no_cache
+
+        // Dwidth converter master ID signals assigned to 0
+        // Since the AXI data width converter has a reordering depth of 1 it doesn't have ID in its master ports - for more details see the documentation
+        // Thus, we assign 0 to all these signals that go to the DDR MIG
+        //assign to_clk_conv_axi_awid = '0;
+        //assign to_clk_conv_axi_bid  = '0;
+        //assign to_clk_conv_axi_arid = '0;
+        //assign to_clk_conv_axi_rid  = '0;
+
+        // AXI dwith converter from XLEN bit (global AXI data width) to 512 bit (AXI user interface DDR data width)
+            xlnx_axi_dwidth_to512_converter axi_dwidth_conv_u (
+                .s_axi_aclk     ( clock_i      ),
+                .s_axi_aresetn  ( reset_ni     ),
+
+                // Slave 
+                .s_axi_awid     ( s_axi_awid    ),
+                .s_axi_awaddr   ( s_axi_awaddr  ),
+                .s_axi_awlen    ( s_axi_awlen   ),
+                .s_axi_awsize   ( s_axi_awsize  ),
+                .s_axi_awburst  ( s_axi_awburst ),
+                .s_axi_awvalid  ( s_axi_awvalid ),
+                .s_axi_awready  ( s_axi_awready ),
+                .s_axi_wdata    ( s_axi_wdata   ),
+                .s_axi_wstrb    ( s_axi_wstrb   ),
+                .s_axi_wlast    ( s_axi_wlast   ),
+                .s_axi_wvalid   ( s_axi_wvalid  ),
+                .s_axi_wready   ( s_axi_wready  ),
+                .s_axi_bid      ( s_axi_bid     ),
+                .s_axi_bresp    ( s_axi_bresp   ),
+                .s_axi_bvalid   ( s_axi_bvalid  ),
+                .s_axi_bready   ( s_axi_bready  ),
+                .s_axi_arid     ( s_axi_arid    ),
+                .s_axi_araddr   ( s_axi_araddr  ),
+                .s_axi_arlen    ( s_axi_arlen   ),
+                .s_axi_arsize   ( s_axi_arsize  ),
+                .s_axi_arburst  ( s_axi_arburst ),
+                .s_axi_arvalid  ( s_axi_arvalid ),
+                .s_axi_arready  ( s_axi_arready ),
+                .s_axi_rid      ( s_axi_rid     ),
+                .s_axi_rdata    ( s_axi_rdata   ),
+                .s_axi_rresp    ( s_axi_rresp   ),
+                .s_axi_rlast    ( s_axi_rlast   ),
+                .s_axi_rvalid   ( s_axi_rvalid  ),
+                .s_axi_rready   ( s_axi_rready  ),
+                .s_axi_awlock   ( s_axi_awlock  ),
+                .s_axi_awcache  ( s_axi_awcache ),
+                .s_axi_awprot   ( s_axi_awprot  ),
+                .s_axi_awqos    ( 0             ),
+                .s_axi_awregion ( 0             ),
+                .s_axi_arlock   ( s_axi_arlock  ),
+                .s_axi_arcache  ( s_axi_arcache ),
+                .s_axi_arprot   ( s_axi_arprot  ),
+                .s_axi_arqos    ( 0             ),
+                .s_axi_arregion ( 0             ),
+
+                // Master to Clock Converter
+                //.m_axi_awid     ( dwidth_conv_to_cache_axi_awid    ),
+                .m_axi_awaddr   ( to_clk_conv_axi_awaddr  ),
+                .m_axi_awlen    ( to_clk_conv_axi_awlen   ),
+                .m_axi_awsize   ( to_clk_conv_axi_awsize  ),
+                .m_axi_awburst  ( to_clk_conv_axi_awburst ),
+                .m_axi_awlock   ( to_clk_conv_axi_awlock  ),
+                .m_axi_awcache  ( to_clk_conv_axi_awcache ),
+                .m_axi_awprot   ( to_clk_conv_axi_awprot  ),
+                .m_axi_awqos    ( to_clk_conv_axi_awqos   ),
+                .m_axi_awvalid  ( to_clk_conv_axi_awvalid ),
+                .m_axi_awready  ( to_clk_conv_axi_awready ),
+                .m_axi_wdata    ( to_clk_conv_axi_wdata   ),
+                .m_axi_wstrb    ( to_clk_conv_axi_wstrb   ),
+                .m_axi_wlast    ( to_clk_conv_axi_wlast   ),
+                .m_axi_wvalid   ( to_clk_conv_axi_wvalid  ),
+                .m_axi_wready   ( to_clk_conv_axi_wready  ),
+                //.m_axi_bid      ( dwidth_conv_to_cache_axi_bid     ),
+                .m_axi_bresp    ( to_clk_conv_axi_bresp   ),
+                .m_axi_bvalid   ( to_clk_conv_axi_bvalid  ),
+                .m_axi_bready   ( to_clk_conv_axi_bready  ),
+                //.m_axi_arid     ( dwidth_conv_to_cache_axi_arid    ),
+                .m_axi_araddr   ( to_clk_conv_axi_araddr  ),
+                .m_axi_arlen    ( to_clk_conv_axi_arlen   ),
+                .m_axi_arsize   ( to_clk_conv_axi_arsize  ),
+                .m_axi_arburst  ( to_clk_conv_axi_arburst ),
+                .m_axi_arlock   ( to_clk_conv_axi_arlock  ),
+                .m_axi_arcache  ( to_clk_conv_axi_arcache ),
+                .m_axi_arprot   ( to_clk_conv_axi_arprot  ),
+                .m_axi_arqos    ( to_clk_conv_axi_arqos   ),
+                .m_axi_arvalid  ( to_clk_conv_axi_arvalid ),
+                .m_axi_arready  ( to_clk_conv_axi_arready ),
+                //.m_axi_rid      ( dwidth_conv_to_cache_axi_rid     ),
+                .m_axi_rdata    ( to_clk_conv_axi_rdata   ),
+                .m_axi_rresp    ( to_clk_conv_axi_rresp   ),
+                .m_axi_rlast    ( to_clk_conv_axi_rlast   ),
+                .m_axi_rvalid   ( to_clk_conv_axi_rvalid  ),
+                .m_axi_rready   ( to_clk_conv_axi_rready  )
+            );
+        end
+    endgenerate
+
     // AXI Clock converter from 250 MHz (xdma global design clk) to 300 MHz (AXI user interface DDR clk) - the data width is XLEN
     axi_clock_converter_wrapper # (
-        .LOCAL_DATA_WIDTH   ( 512 ),
+        .LOCAL_DATA_WIDTH   ( DDR4_CHANNEL_DATA_WIDTH ),
         .LOCAL_ADDR_WIDTH   ( LOCAL_ADDR_WIDTH ),
         .LOCAL_ID_WIDTH     ( LOCAL_ID_WIDTH   )
     ) axi_clk_conv_u (
@@ -182,47 +282,47 @@ module ddr4_channel_wrapper # (
 
         .m_axi_aclk     ( ddr_clk        ),
         .m_axi_aresetn  ( ~ddr_rst       ),
-
-        .s_axi_awid     ( cache_to_clk_conv_axi_awid     ),
-        .s_axi_awaddr   ( cache_to_clk_conv_axi_awaddr   ),
-        .s_axi_awlen    ( cache_to_clk_conv_axi_awlen    ),
-        .s_axi_awsize   ( cache_to_clk_conv_axi_awsize   ),
-        .s_axi_awburst  ( cache_to_clk_conv_axi_awburst  ),
-        .s_axi_awlock   ( cache_to_clk_conv_axi_awlock   ),
-        .s_axi_awcache  ( cache_to_clk_conv_axi_awcache  ),
-        .s_axi_awprot   ( cache_to_clk_conv_axi_awprot   ),
-        .s_axi_awqos    ( cache_to_clk_conv_axi_awqos    ),
-        .s_axi_awvalid  ( cache_to_clk_conv_axi_awvalid  ),
-        .s_axi_awready  ( cache_to_clk_conv_axi_awready  ),
-        .s_axi_awregion ( cache_to_clk_conv_axi_awregion ),
-        .s_axi_wdata    ( cache_to_clk_conv_axi_wdata    ),
-        .s_axi_wstrb    ( cache_to_clk_conv_axi_wstrb    ),
-        .s_axi_wlast    ( cache_to_clk_conv_axi_wlast    ),
-        .s_axi_wvalid   ( cache_to_clk_conv_axi_wvalid   ),
-        .s_axi_wready   ( cache_to_clk_conv_axi_wready   ),
-        .s_axi_bid      ( cache_to_clk_conv_axi_bid      ),
-        .s_axi_bresp    ( cache_to_clk_conv_axi_bresp    ),
-        .s_axi_bvalid   ( cache_to_clk_conv_axi_bvalid   ),
-        .s_axi_bready   ( cache_to_clk_conv_axi_bready   ),
-        .s_axi_arid     ( cache_to_clk_conv_axi_arid     ),
-        .s_axi_araddr   ( cache_to_clk_conv_axi_araddr   ),
-        .s_axi_arlen    ( cache_to_clk_conv_axi_arlen    ),
-        .s_axi_arsize   ( cache_to_clk_conv_axi_arsize   ),
-        .s_axi_arburst  ( cache_to_clk_conv_axi_arburst  ),
-        .s_axi_arlock   ( cache_to_clk_conv_axi_arlock   ),
-        .s_axi_arregion ( cache_to_clk_conv_axi_arregion ),
-        .s_axi_arcache  ( cache_to_clk_conv_axi_arcache  ),
-        .s_axi_arprot   ( cache_to_clk_conv_axi_arprot   ),
-        .s_axi_arqos    ( cache_to_clk_conv_axi_arqos    ),
-        .s_axi_arvalid  ( cache_to_clk_conv_axi_arvalid  ),
-        .s_axi_arready  ( cache_to_clk_conv_axi_arready  ),
-        .s_axi_rid      ( cache_to_clk_conv_axi_rid      ),
-        .s_axi_rdata    ( cache_to_clk_conv_axi_rdata    ),
-        .s_axi_rresp    ( cache_to_clk_conv_axi_rresp    ),
-        .s_axi_rlast    ( cache_to_clk_conv_axi_rlast    ),
-        .s_axi_rvalid   ( cache_to_clk_conv_axi_rvalid   ),
-        .s_axi_rready   ( cache_to_clk_conv_axi_rready   ),
-
+        // Slave from Cache or Dwidth Converter
+        .s_axi_awid     ( to_clk_conv_axi_awid     ),
+        .s_axi_awaddr   ( to_clk_conv_axi_awaddr   ),
+        .s_axi_awlen    ( to_clk_conv_axi_awlen    ),
+        .s_axi_awsize   ( to_clk_conv_axi_awsize   ),
+        .s_axi_awburst  ( to_clk_conv_axi_awburst  ),
+        .s_axi_awlock   ( to_clk_conv_axi_awlock   ),
+        .s_axi_awcache  ( to_clk_conv_axi_awcache  ),
+        .s_axi_awprot   ( to_clk_conv_axi_awprot   ),
+        .s_axi_awqos    ( to_clk_conv_axi_awqos    ),
+        .s_axi_awvalid  ( to_clk_conv_axi_awvalid  ),
+        .s_axi_awready  ( to_clk_conv_axi_awready  ),
+        .s_axi_awregion ( to_clk_conv_axi_awregion ),
+        .s_axi_wdata    ( to_clk_conv_axi_wdata    ),
+        .s_axi_wstrb    ( to_clk_conv_axi_wstrb    ),
+        .s_axi_wlast    ( to_clk_conv_axi_wlast    ),
+        .s_axi_wvalid   ( to_clk_conv_axi_wvalid   ),
+        .s_axi_wready   ( to_clk_conv_axi_wready   ),
+        .s_axi_bid      ( to_clk_conv_axi_bid      ),
+        .s_axi_bresp    ( to_clk_conv_axi_bresp    ),
+        .s_axi_bvalid   ( to_clk_conv_axi_bvalid   ),
+        .s_axi_bready   ( to_clk_conv_axi_bready   ),
+        .s_axi_arid     ( to_clk_conv_axi_arid     ),
+        .s_axi_araddr   ( to_clk_conv_axi_araddr   ),
+        .s_axi_arlen    ( to_clk_conv_axi_arlen    ),
+        .s_axi_arsize   ( to_clk_conv_axi_arsize   ),
+        .s_axi_arburst  ( to_clk_conv_axi_arburst  ),
+        .s_axi_arlock   ( to_clk_conv_axi_arlock   ),
+        .s_axi_arregion ( to_clk_conv_axi_arregion ),
+        .s_axi_arcache  ( to_clk_conv_axi_arcache  ),
+        .s_axi_arprot   ( to_clk_conv_axi_arprot   ),
+        .s_axi_arqos    ( to_clk_conv_axi_arqos    ),
+        .s_axi_arvalid  ( to_clk_conv_axi_arvalid  ),
+        .s_axi_arready  ( to_clk_conv_axi_arready  ),
+        .s_axi_rid      ( to_clk_conv_axi_rid      ),
+        .s_axi_rdata    ( to_clk_conv_axi_rdata    ),
+        .s_axi_rresp    ( to_clk_conv_axi_rresp    ),
+        .s_axi_rlast    ( to_clk_conv_axi_rlast    ),
+        .s_axi_rvalid   ( to_clk_conv_axi_rvalid   ),
+        .s_axi_rready   ( to_clk_conv_axi_rready   ),
+        // Master to DDR
         .m_axi_awid     ( clk_conv_to_ddr4_axi_awid      ),
         .m_axi_awaddr   ( clk_conv_to_ddr4_axi_awaddr    ),
         .m_axi_awlen    ( clk_conv_to_ddr4_axi_awlen     ),
@@ -265,184 +365,6 @@ module ddr4_channel_wrapper # (
 
     );
 
-/*
-    // AXI dwith converter from XLEN bit (global AXI data width) to 512 bit (AXI user interface DDR data width)
-    xlnx_axi_dwidth_to512_converter axi_dwidth_conv_u (
-        .s_axi_aclk     ( ddr_clk      ),
-        .s_axi_aresetn  ( ~ddr_rst     ),
-
-        // Slave from clock conv
-        .s_axi_awid     ( clk_conv_to_dwidth_conv_axi_awid    ),
-        .s_axi_awaddr   ( clk_conv_to_dwidth_conv_axi_awaddr  ),
-        .s_axi_awlen    ( clk_conv_to_dwidth_conv_axi_awlen   ),
-        .s_axi_awsize   ( clk_conv_to_dwidth_conv_axi_awsize  ),
-        .s_axi_awburst  ( clk_conv_to_dwidth_conv_axi_awburst ),
-        .s_axi_awvalid  ( clk_conv_to_dwidth_conv_axi_awvalid ),
-        .s_axi_awready  ( clk_conv_to_dwidth_conv_axi_awready ),
-        .s_axi_wdata    ( clk_conv_to_dwidth_conv_axi_wdata   ),
-        .s_axi_wstrb    ( clk_conv_to_dwidth_conv_axi_wstrb   ),
-        .s_axi_wlast    ( clk_conv_to_dwidth_conv_axi_wlast   ),
-        .s_axi_wvalid   ( clk_conv_to_dwidth_conv_axi_wvalid  ),
-        .s_axi_wready   ( clk_conv_to_dwidth_conv_axi_wready  ),
-        .s_axi_bid      ( clk_conv_to_dwidth_conv_axi_bid     ),
-        .s_axi_bresp    ( clk_conv_to_dwidth_conv_axi_bresp   ),
-        .s_axi_bvalid   ( clk_conv_to_dwidth_conv_axi_bvalid  ),
-        .s_axi_bready   ( clk_conv_to_dwidth_conv_axi_bready  ),
-        .s_axi_arid     ( clk_conv_to_dwidth_conv_axi_arid    ),
-        .s_axi_araddr   ( clk_conv_to_dwidth_conv_axi_araddr  ),
-        .s_axi_arlen    ( clk_conv_to_dwidth_conv_axi_arlen   ),
-        .s_axi_arsize   ( clk_conv_to_dwidth_conv_axi_arsize  ),
-        .s_axi_arburst  ( clk_conv_to_dwidth_conv_axi_arburst ),
-        .s_axi_arvalid  ( clk_conv_to_dwidth_conv_axi_arvalid ),
-        .s_axi_arready  ( clk_conv_to_dwidth_conv_axi_arready ),
-        .s_axi_rid      ( clk_conv_to_dwidth_conv_axi_rid     ),
-        .s_axi_rdata    ( clk_conv_to_dwidth_conv_axi_rdata   ),
-        .s_axi_rresp    ( clk_conv_to_dwidth_conv_axi_rresp   ),
-        .s_axi_rlast    ( clk_conv_to_dwidth_conv_axi_rlast   ),
-        .s_axi_rvalid   ( clk_conv_to_dwidth_conv_axi_rvalid  ),
-        .s_axi_rready   ( clk_conv_to_dwidth_conv_axi_rready  ),
-        .s_axi_awlock   ( clk_conv_to_dwidth_conv_axi_awlock  ),
-        .s_axi_awcache  ( clk_conv_to_dwidth_conv_axi_awcache ),
-        .s_axi_awprot   ( clk_conv_to_dwidth_conv_axi_awprot  ),
-        .s_axi_awqos    ( 0   ),
-        .s_axi_awregion ( 0   ),
-        .s_axi_arlock   ( clk_conv_to_dwidth_conv_axi_arlock  ),
-        .s_axi_arcache  ( clk_conv_to_dwidth_conv_axi_arcache ),
-        .s_axi_arprot   ( clk_conv_to_dwidth_conv_axi_arprot  ),
-        .s_axi_arqos    ( 0   ),
-        .s_axi_arregion ( 0   ),
-
-
-        // Master to DDR
-        //.m_axi_awid     ( dwidth_conv_to_cache_axi_awid    ),
-        .m_axi_awaddr   ( dwidth_conv_to_cache_axi_awaddr  ),
-        .m_axi_awlen    ( dwidth_conv_to_cache_axi_awlen   ),
-        .m_axi_awsize   ( dwidth_conv_to_cache_axi_awsize  ),
-        .m_axi_awburst  ( dwidth_conv_to_cache_axi_awburst ),
-        .m_axi_awlock   ( dwidth_conv_to_cache_axi_awlock  ),
-        .m_axi_awcache  ( dwidth_conv_to_cache_axi_awcache ),
-        .m_axi_awprot   ( dwidth_conv_to_cache_axi_awprot  ),
-        .m_axi_awqos    ( dwidth_conv_to_cache_axi_awqos   ),
-        .m_axi_awvalid  ( dwidth_conv_to_cache_axi_awvalid ),
-        .m_axi_awready  ( dwidth_conv_to_cache_axi_awready ),
-        .m_axi_wdata    ( dwidth_conv_to_cache_axi_wdata   ),
-        .m_axi_wstrb    ( dwidth_conv_to_cache_axi_wstrb   ),
-        .m_axi_wlast    ( dwidth_conv_to_cache_axi_wlast   ),
-        .m_axi_wvalid   ( dwidth_conv_to_cache_axi_wvalid  ),
-        .m_axi_wready   ( dwidth_conv_to_cache_axi_wready  ),
-        //.m_axi_bid      ( dwidth_conv_to_cache_axi_bid     ),
-        .m_axi_bresp    ( dwidth_conv_to_cache_axi_bresp   ),
-        .m_axi_bvalid   ( dwidth_conv_to_cache_axi_bvalid  ),
-        .m_axi_bready   ( dwidth_conv_to_cache_axi_bready  ),
-        //.m_axi_arid     ( dwidth_conv_to_cache_axi_arid    ),
-        .m_axi_araddr   ( dwidth_conv_to_cache_axi_araddr  ),
-        .m_axi_arlen    ( dwidth_conv_to_cache_axi_arlen   ),
-        .m_axi_arsize   ( dwidth_conv_to_cache_axi_arsize  ),
-        .m_axi_arburst  ( dwidth_conv_to_cache_axi_arburst ),
-        .m_axi_arlock   ( dwidth_conv_to_cache_axi_arlock  ),
-        .m_axi_arcache  ( dwidth_conv_to_cache_axi_arcache ),
-        .m_axi_arprot   ( dwidth_conv_to_cache_axi_arprot  ),
-        .m_axi_arqos    ( dwidth_conv_to_cache_axi_arqos   ),
-        .m_axi_arvalid  ( dwidth_conv_to_cache_axi_arvalid ),
-        .m_axi_arready  ( dwidth_conv_to_cache_axi_arready ),
-        //.m_axi_rid      ( dwidth_conv_to_cache_axi_rid     ),
-        .m_axi_rdata    ( dwidth_conv_to_cache_axi_rdata   ),
-        .m_axi_rresp    ( dwidth_conv_to_cache_axi_rresp   ),
-        .m_axi_rlast    ( dwidth_conv_to_cache_axi_rlast   ),
-        .m_axi_rvalid   ( dwidth_conv_to_cache_axi_rvalid  ),
-        .m_axi_rready   ( dwidth_conv_to_cache_axi_rready  )
-    );
-
-    //generate
-        //if(ENABLE_CACHE) begin: with_cache
-        
-        xlnx_system_cache_0 system_cache_u (
-            .ACLK               (ddr_clk),                           // input wire ACLK
-            .ARESETN            (~ddr_rst),                       // input wire ARESETN
-            .Initializing       (    ),                      // output wire Initializing
-            .S0_AXI_GEN_AWID    (dwidth_conv_to_cache_axi_awid),        // input wire [2 : 0] S0_AXI_GEN_AWID
-            .S0_AXI_GEN_AWADDR  (dwidth_conv_to_cache_axi_awaddr),    // input wire [31 : 0] S0_AXI_GEN_AWADDR
-            .S0_AXI_GEN_AWLEN   (dwidth_conv_to_cache_axi_awlen),      // input wire [7 : 0] S0_AXI_GEN_AWLEN
-            .S0_AXI_GEN_AWSIZE  (dwidth_conv_to_cache_axi_awsize),    // input wire [2 : 0] S0_AXI_GEN_AWSIZE
-            .S0_AXI_GEN_AWBURST (dwidth_conv_to_cache_axi_awburst),  // input wire [1 : 0] S0_AXI_GEN_AWBURST
-            .S0_AXI_GEN_AWLOCK  (dwidth_conv_to_cache_axi_awlock),    // input wire S0_AXI_GEN_AWLOCK
-            .S0_AXI_GEN_AWCACHE (dwidth_conv_to_cache_axi_awcache),  // input wire [3 : 0] S0_AXI_GEN_AWCACHE
-            .S0_AXI_GEN_AWPROT  (dwidth_conv_to_cache_axi_awprot),    // input wire [2 : 0] S0_AXI_GEN_AWPROT
-            .S0_AXI_GEN_AWQOS   (dwidth_conv_to_cache_axi_awqos),      // input wire [3 : 0] S0_AXI_GEN_AWQOS
-            .S0_AXI_GEN_AWVALID (dwidth_conv_to_cache_axi_awvalid),  // input wire S0_AXI_GEN_AWVALID
-            .S0_AXI_GEN_AWREADY (dwidth_conv_to_cache_axi_awready),  // output wire S0_AXI_GEN_AWREADY
-            .S0_AXI_GEN_AWUSER  (dwidth_conv_to_cache_axi_awuser),    // input wire [31 : 0] S0_AXI_GEN_AWUSER
-            .S0_AXI_GEN_WDATA   (dwidth_conv_to_cache_axi_wdata),      // input wire [511 : 0] S0_AXI_GEN_WDATA
-            .S0_AXI_GEN_WSTRB   (dwidth_conv_to_cache_axi_wstrb),      // input wire [63 : 0] S0_AXI_GEN_WSTRB
-            .S0_AXI_GEN_WLAST   (dwidth_conv_to_cache_axi_wlast),      // input wire S0_AXI_GEN_WLAST
-            .S0_AXI_GEN_WVALID  (dwidth_conv_to_cache_axi_wvalid),    // input wire S0_AXI_GEN_WVALID
-            .S0_AXI_GEN_WREADY  (dwidth_conv_to_cache_axi_wready),    // output wire S0_AXI_GEN_WREADY
-            .S0_AXI_GEN_BRESP   (dwidth_conv_to_cache_axi_bresp),      // output wire [1 : 0] S0_AXI_GEN_BRESP
-            .S0_AXI_GEN_BID     (dwidth_conv_to_cache_axi_bid),          // output wire [2 : 0] S0_AXI_GEN_BID
-            .S0_AXI_GEN_BVALID  (dwidth_conv_to_cache_axi_bvalid),    // output wire S0_AXI_GEN_BVALID
-            .S0_AXI_GEN_BREADY  (dwidth_conv_to_cache_axi_bready),    // input wire S0_AXI_GEN_BREADY
-            .S0_AXI_GEN_ARID    (dwidth_conv_to_cache_axi_arid),        // input wire [2 : 0] S0_AXI_GEN_ARID
-            .S0_AXI_GEN_ARADDR  (dwidth_conv_to_cache_axi_araddr),    // input wire [31 : 0] S0_AXI_GEN_ARADDR
-            .S0_AXI_GEN_ARLEN   (dwidth_conv_to_cache_axi_arlen),      // input wire [7 : 0] S0_AXI_GEN_ARLEN
-            .S0_AXI_GEN_ARSIZE  (dwidth_conv_to_cache_axi_arsize),    // input wire [2 : 0] S0_AXI_GEN_ARSIZE
-            .S0_AXI_GEN_ARBURST (dwidth_conv_to_cache_axi_arburst),  // input wire [1 : 0] S0_AXI_GEN_ARBURST
-            .S0_AXI_GEN_ARLOCK  (dwidth_conv_to_cache_axi_arlock),    // input wire S0_AXI_GEN_ARLOCK
-            .S0_AXI_GEN_ARCACHE (dwidth_conv_to_cache_axi_arcache),  // input wire [3 : 0] S0_AXI_GEN_ARCACHE
-            .S0_AXI_GEN_ARPROT  (dwidth_conv_to_cache_axi_arprot),    // input wire [2 : 0] S0_AXI_GEN_ARPROT
-            .S0_AXI_GEN_ARQOS   (dwidth_conv_to_cache_axi_arqos),      // input wire [3 : 0] S0_AXI_GEN_ARQOS
-            .S0_AXI_GEN_ARVALID (dwidth_conv_to_cache_axi_arvalid),  // input wire S0_AXI_GEN_ARVALID
-            .S0_AXI_GEN_ARREADY (dwidth_conv_to_cache_axi_arready),  // output wire S0_AXI_GEN_ARREADY
-            .S0_AXI_GEN_ARUSER  (dwidth_conv_to_cache_axi_aruser),    // input wire [31 : 0] S0_AXI_GEN_ARUSER
-            .S0_AXI_GEN_RID     (dwidth_conv_to_cache_axi_rid),          // output wire [2 : 0] S0_AXI_GEN_RID
-            .S0_AXI_GEN_RDATA   (dwidth_conv_to_cache_axi_rdata),      // output wire [511 : 0] S0_AXI_GEN_RDATA
-            .S0_AXI_GEN_RRESP   (dwidth_conv_to_cache_axi_rresp),      // output wire [1 : 0] S0_AXI_GEN_RRESP
-            .S0_AXI_GEN_RLAST   (dwidth_conv_to_cache_axi_rlast),      // output wire S0_AXI_GEN_RLAST
-            .S0_AXI_GEN_RVALID  (dwidth_conv_to_cache_axi_rvalid),    // output wire S0_AXI_GEN_RVALID
-            .S0_AXI_GEN_RREADY  (dwidth_conv_to_cache_axi_rready),    // input wire S0_AXI_GEN_RREADY
-            .M0_AXI_AWID        (cache_to_ddr4_axi_awid),                // output wire [0 : 0] M0_AXI_AWID
-            .M0_AXI_AWADDR      (cache_to_ddr4_axi_awaddr),            // output wire [31 : 0] M0_AXI_AWADDR
-            .M0_AXI_AWLEN       (cache_to_ddr4_axi_awlen),              // output wire [7 : 0] M0_AXI_AWLEN
-            .M0_AXI_AWSIZE      (cache_to_ddr4_axi_awsize),            // output wire [2 : 0] M0_AXI_AWSIZE
-            .M0_AXI_AWBURST     (cache_to_ddr4_axi_awburst),          // output wire [1 : 0] M0_AXI_AWBURST
-            .M0_AXI_AWLOCK      (cache_to_ddr4_axi_awlock),            // output wire M0_AXI_AWLOCK
-            .M0_AXI_AWCACHE     (cache_to_ddr4_axi_awcache),          // output wire [3 : 0] M0_AXI_AWCACHE
-            .M0_AXI_AWPROT      (cache_to_ddr4_axi_awprot),            // output wire [2 : 0] M0_AXI_AWPROT
-            .M0_AXI_AWQOS       (cache_to_ddr4_axi_awqos),              // output wire [3 : 0] M0_AXI_AWQOS
-            .M0_AXI_AWVALID     (cache_to_ddr4_axi_awvalid),          // output wire M0_AXI_AWVALID
-            .M0_AXI_AWREADY     (cache_to_ddr4_axi_awready),          // input wire M0_AXI_AWREADY
-            .M0_AXI_WDATA       (cache_to_ddr4_axi_wdata),              // output wire [511 : 0] M0_AXI_WDATA
-            .M0_AXI_WSTRB       (cache_to_ddr4_axi_wstrb),              // output wire [3 : 0] M0_AXI_WSTRB
-            .M0_AXI_WLAST       (cache_to_ddr4_axi_wlast),              // output wire M0_AXI_WLAST
-            .M0_AXI_WVALID      (cache_to_ddr4_axi_wvalid),            // output wire M0_AXI_WVALID
-            .M0_AXI_WREADY      (cache_to_ddr4_axi_wready),            // input wire M0_AXI_WREADY
-            .M0_AXI_BRESP       (cache_to_ddr4_axi_bresp),              // input wire [1 : 0] M0_AXI_BRESP
-            .M0_AXI_BID         (cache_to_ddr4_axi_bid),                  // input wire [0 : 0] M0_AXI_BID
-            .M0_AXI_BVALID      (cache_to_ddr4_axi_bvalid),            // input wire M0_AXI_BVALID
-            .M0_AXI_BREADY      (cache_to_ddr4_axi_bready),            // output wire M0_AXI_BREADY
-            .M0_AXI_ARID        (cache_to_ddr4_axi_arid),                // output wire [0 : 0] M0_AXI_ARID
-            .M0_AXI_ARADDR      (cache_to_ddr4_axi_araddr),            // output wire [31 : 0] M0_AXI_ARADDR
-            .M0_AXI_ARLEN       (cache_to_ddr4_axi_arlen),              // output wire [7 : 0] M0_AXI_ARLEN
-            .M0_AXI_ARSIZE      (cache_to_ddr4_axi_arsize),            // output wire [2 : 0] M0_AXI_ARSIZE
-            .M0_AXI_ARBURST     (cache_to_ddr4_axi_arburst),          // output wire [1 : 0] M0_AXI_ARBURST
-            .M0_AXI_ARLOCK      (cache_to_ddr4_axi_arlock),            // output wire M0_AXI_ARLOCK
-            .M0_AXI_ARCACHE     (cache_to_ddr4_axi_arcache),          // output wire [3 : 0] M0_AXI_ARCACHE
-            .M0_AXI_ARPROT      (cache_to_ddr4_axi_arprot),            // output wire [2 : 0] M0_AXI_ARPROT
-            .M0_AXI_ARQOS       (cache_to_ddr4_axi_arqos),              // output wire [3 : 0] M0_AXI_ARQOS
-            .M0_AXI_ARVALID     (cache_to_ddr4_axi_arvalid),          // output wire M0_AXI_ARVALID
-            .M0_AXI_ARREADY     (cache_to_ddr4_axi_arready),          // input wire M0_AXI_ARREADY
-            .M0_AXI_RID         (cache_to_ddr4_axi_rid),                  // input wire [0 : 0] M0_AXI_RID
-            .M0_AXI_RDATA       (cache_to_ddr4_axi_rdata),              // input wire [511 : 0] M0_AXI_RDATA
-            .M0_AXI_RRESP       (cache_to_ddr4_axi_rresp),              // input wire [1 : 0] M0_AXI_RRESP
-            .M0_AXI_RLAST       (cache_to_ddr4_axi_rlast),              // input wire M0_AXI_RLAST
-            .M0_AXI_RVALID      (cache_to_ddr4_axi_rvalid),            // input wire M0_AXI_RVALID
-            .M0_AXI_RREADY      (cache_to_ddr4_axi_rready)            // output wire M0_AXI_RREADY
-        );
-        //end else begin: no_cache
-            //`ASSIGN_AXI_BUS(cache_to_ddr4, dwidth_conv_to_cache)
-            //end
-        //endgenerate
-
-*/
 
     // Map DDR4 address signals
     // Zero extend them if the address width is 32, otherwise clip them down.
@@ -505,7 +427,7 @@ module ddr4_channel_wrapper # (
 
         // AXI4 interface
         .c0_ddr4_s_axi_awid          ( clk_conv_to_ddr4_axi_awid    ),
-        .c0_ddr4_s_axi_awaddr        ( ddr4_axi_awaddr           ),
+        .c0_ddr4_s_axi_awaddr        ( ddr4_axi_awaddr              ),
         .c0_ddr4_s_axi_awlen         ( clk_conv_to_ddr4_axi_awlen   ),
         .c0_ddr4_s_axi_awsize        ( clk_conv_to_ddr4_axi_awsize  ),
         .c0_ddr4_s_axi_awburst       ( clk_conv_to_ddr4_axi_awburst ),
@@ -525,7 +447,7 @@ module ddr4_channel_wrapper # (
         .c0_ddr4_s_axi_bresp         ( clk_conv_to_ddr4_axi_bresp   ),
         .c0_ddr4_s_axi_bvalid        ( clk_conv_to_ddr4_axi_bvalid  ),
         .c0_ddr4_s_axi_arid          ( clk_conv_to_ddr4_axi_arid    ),
-        .c0_ddr4_s_axi_araddr        ( ddr4_axi_araddr           ),
+        .c0_ddr4_s_axi_araddr        ( ddr4_axi_araddr              ),
         .c0_ddr4_s_axi_arlen         ( clk_conv_to_ddr4_axi_arlen   ),
         .c0_ddr4_s_axi_arsize        ( clk_conv_to_ddr4_axi_arsize  ),
         .c0_ddr4_s_axi_arburst       ( clk_conv_to_ddr4_axi_arburst ),
@@ -544,6 +466,3 @@ module ddr4_channel_wrapper # (
     );
 
 endmodule
-
-
-
