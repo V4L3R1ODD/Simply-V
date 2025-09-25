@@ -10,6 +10,6 @@ set_property -dict [list \
 
 # Fixed to 512 bits
 set_property CONFIG.DATA_WIDTH  512                      [get_ips $::env(IP_NAME)]
-set_property CONFIG.ADDR_WIDTH  32                       [get_ips $::env(IP_NAME)]
+set_property CONFIG.ADDR_WIDTH  $::env(MBUS_ADDR_WIDTH)  [get_ips $::env(IP_NAME)]
 set_property CONFIG.ID_WIDTH    $::env(MBUS_ID_WIDTH)    [get_ips $::env(IP_NAME)]
 
