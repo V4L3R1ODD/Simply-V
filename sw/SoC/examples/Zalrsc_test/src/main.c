@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
     printf("=== LR/SC ACCESS TEST ===\n\r");
     printf("Range: 0x%x - 0x%x\n\r", ddr_base, ddr_base);
 
-    for (uintptr_t addr = ddr_base; addr <= ddr_end; addr += STEP) {
+    for (uintptr_t addr = ddr_base; addr < ddr_end; addr += STEP) {
         volatile unsigned int* ddr_ptr = (volatile unsigned int*) addr;
         unsigned int test_val = (addr & 0xFFFF);  // address-dependent pseudo-random value 
         unsigned int read_back;
