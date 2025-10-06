@@ -12,7 +12,7 @@ extern unsigned int _DDR_start;
 extern unsigned int _DDR_end;
 #define STEP        0x1000   // Step between test addresses
 
-
+// LR.W / SC.W function
 static inline int lr_w_sc_attempt(volatile unsigned int* addr, unsigned int new_val) {
     int success;
     asm volatile (
@@ -25,6 +25,7 @@ static inline int lr_w_sc_attempt(volatile unsigned int* addr, unsigned int new_
     return success;
 }
 
+// LR.W.aq / SC.W.rl function
 static inline int lr_w_aq_sc_rl_attempt(volatile unsigned int* addr, unsigned int new_val) {
     int success;
     asm volatile (
@@ -37,6 +38,7 @@ static inline int lr_w_aq_sc_rl_attempt(volatile unsigned int* addr, unsigned in
     return success;
 }
 
+// LR.W.aqrl / SC.W.aqrl function
 static inline int lr_w_aqrl_sc_aqrl_attempt(volatile unsigned int* addr, unsigned int new_val) {
     int success;
     asm volatile (
@@ -49,7 +51,7 @@ static inline int lr_w_aqrl_sc_aqrl_attempt(volatile unsigned int* addr, unsigne
     return success;
 }
 
-
+// LR.D / SC.D function
 static inline int lr_d_sc_attempt(volatile unsigned long long* addr, unsigned long long new_val) {
     int success;
     asm volatile (
@@ -61,6 +63,8 @@ static inline int lr_d_sc_attempt(volatile unsigned long long* addr, unsigned lo
     );
     return success;
 }
+
+// LR.D.aq / SC.D.rl function
 static inline int lr_d_aq_sc_rl_attempt(volatile unsigned long long* addr, unsigned long long new_val) {
     int success;
     asm volatile (
@@ -72,6 +76,8 @@ static inline int lr_d_aq_sc_rl_attempt(volatile unsigned long long* addr, unsig
     );
     return success;
 }
+
+// LR.D.aqrl / SC.D.aqrl function
 static inline int lr_d_aqrl_sc_aqrl_attempt(volatile unsigned long long* addr, unsigned long long new_val) {
     int success;
     asm volatile (
@@ -105,7 +111,7 @@ int main(int argc, char* argv[]) {
 
         printf("==== Iteration base address: 0x%08lx ====\n\n\r", base);
 
-         // Word-mode pointers
+        // Word-mode pointers
         volatile unsigned int*  addr_aligned_w    = (volatile unsigned int*) base;
         volatile unsigned int*  addr_other_w      = (volatile unsigned int*) (base + STEP/2);
         volatile unsigned char* addr_misaligned_w = (volatile unsigned char*) (base + 3); // non word-aligned
@@ -128,7 +134,7 @@ int main(int argc, char* argv[]) {
         // 1. LR.W followed by SC.W with same aligned address --> SUCCESS
         // -------------------------------------------------------------------
         printf("********************** [TEST1_W] ********************** \n");
-        printf("Description: LR.W+SC.W same address (aligned)\n");
+        printf("Description: LR.W + SC.W same address (aligned)\n");
 
         // === Preconditions ===
         *addr_aligned_w = init_val_w;
@@ -323,7 +329,7 @@ int main(int argc, char* argv[]) {
         // 1. LR.D followed by SC.D with same aligned address --> SUCCESS
         // -------------------------------------------------------------------
         printf("********************** [TEST1_D] ********************** \n");
-        printf("Description: LR.D+SC.D same address (aligned)\n");
+        printf("Description: LR.D + SC.D same address (aligned)\n");
 
         // === Preconditions ===
         *addr_aligned_d = init_val_d;
@@ -517,7 +523,7 @@ int main(int argc, char* argv[]) {
         // 1. LR.W.aq followed by SC.W.rl with same aligned address --> SUCCESS
         // -------------------------------------------------------------------
         printf("********************** [TEST1_W_aq_rl] ********************** \n");
-        printf("Description: LR.W.aq+SC.W.rl same address (aligned)\n");
+        printf("Description: LR.W.aq + SC.W.rl same address (aligned)\n");
 
         // === Preconditions ===
         *addr_aligned_w = init_val_w;
@@ -527,7 +533,8 @@ int main(int argc, char* argv[]) {
         printf("Memory value before SC : 0x%08x\n\r", *addr_aligned_w);
         printf("Executing SC...\n\r");
         success = lr_w_aq_sc_rl_attempt(addr_aligned_w, new_val_w);
-        read_back = *addr_aligned_w;        
+        read_back = *addr_aligned_w;    
+
         // SC returns 0 if the store was successful.
         // Therefore, PASS requires:
         //   1. success == 0  --> SC succeeded
@@ -643,7 +650,6 @@ int main(int argc, char* argv[]) {
         *addr_aligned_w = init_val_w;
 
 
-
         // -------------------------------------------------------------------
         // 5. Misaligned access --> FAILURE
         // -------------------------------------------------------------------
@@ -672,7 +678,6 @@ int main(int argc, char* argv[]) {
                (*addr_misaligned_w != new_val_w) ? "PASSED" : "FAILED",
                success, *addr_misaligned_w);
         printf("Memory value after SC : 0x%08x\n\n\r", *addr_misaligned_w);
-
 
 
         // -------------------------------------------------------------------
@@ -706,7 +711,6 @@ int main(int argc, char* argv[]) {
 
         // === Postconditions ===
         *addr_aligned_w = init_val_w;
-
 
 
         // -------------------------------------------------------------------
@@ -903,7 +907,7 @@ int main(int argc, char* argv[]) {
         // 1. LR.D.AQ followed by SC.D.RL with same aligned address --> SUCCESS
         // -------------------------------------------------------------------
         printf("********************** [TEST1_D_aq_rl] ********************** \n");
-        printf("Description: LR.D.AQ+SC.D.RL same address (aligned)\n");
+        printf("Description: LR.D.AQ + SC.D.RL same address (aligned)\n");
 
         // === Preconditions ===
         *addr_aligned_d = init_val_d;
@@ -1095,7 +1099,7 @@ int main(int argc, char* argv[]) {
         // 1. LR.D.AQRL followed by SC.D.AQRL with same aligned address --> SUCCESS
         // -------------------------------------------------------------------
         printf("********************** [TEST1_D_aqrl] ********************** \n");
-        printf("Description: LR.D.AQRL+SC.D.AQRL same address (aligned)\n");
+        printf("Description: LR.D.AQRL + SC.D.AQRL same address (aligned)\n");
 
         // === Preconditions ===
         *addr_aligned_d = init_val_d;
