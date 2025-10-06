@@ -130,6 +130,7 @@ int main(int argc, char* argv[]) {
         *addr_aligned_d = init_val_d;
         *addr_other_d   = init_val_d;
 
+
         // -------------------------------------------------------------------
         // 1. LR.W followed by SC.W with same aligned address --> SUCCESS
         // -------------------------------------------------------------------
@@ -184,7 +185,6 @@ int main(int argc, char* argv[]) {
         // If no LR.W is executed, SC.W must fail. This means:
         //   1. SC.W failure returns a non-zero value in 'success'
         //   2. Memory remains unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%08x)\n\r",
                (success != 0 && read_back == init_val_w) ? "PASSED" : "FAILED",
                success, read_back);
@@ -217,7 +217,6 @@ int main(int argc, char* argv[]) {
 
         // A SC on addr_other must fail (reservation is tied to addr_aligned_w)
         // Memory values must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, memA=0x%08x, memB=0x%08x)\n\r",
                (success != 0 && *addr_aligned_w == init_val_w && *addr_other_w == init_val_w) ? "PASSED" : "FAILED",
                success, *addr_aligned_w, *addr_other_w);
@@ -251,7 +250,6 @@ int main(int argc, char* argv[]) {
 
         // Second SC.W executed immediately after must fail (not valid LR.W anymore) --> success2 != 0 
         // Memory must contain the value from the first SC.W
-        
         printf("TEST RESULT: %s (SC1=%d, SC2=%d, mem=0x%08x)\n\r",
                (success == 0 && success2 != 0) ? "PASSED" : "FAILED",
                success, success2, *addr_aligned_w);
@@ -285,7 +283,6 @@ int main(int argc, char* argv[]) {
 
         // LR.W/SC.W sequence must fail due to misalignment
         // SC.W should not modify memory
-
         printf("TEST RESULT: %s (SC=%d), mem=0x%08x\n\r",
                (*addr_misaligned_w != new_val_w) ? "PASSED" : "FAILED",
                success, *addr_misaligned_w);
@@ -315,7 +312,6 @@ int main(int argc, char* argv[]) {
 
         // SC.W tied to the first LR.W (addr_aligned_w) must fail (reservation lost)
         // Memory must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%08x)\n\r",
                (success_first != 0) ? "PASSED" : "FAILED",
                success_first, *addr_aligned_w);
@@ -379,7 +375,6 @@ int main(int argc, char* argv[]) {
         // If no LR.D is executed, SC.D must fail. This means:
         //   1. SC.D failure returns a non-zero value in 'success'
         //   2. Memory remains unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx))\n\r",
                (success != 0 && read_back == init_val_d) ? "PASSED" : "FAILED",
                success, read_back);
@@ -412,7 +407,6 @@ int main(int argc, char* argv[]) {
 
         // A SC on addr_other must fail (reservation is tied to addr_aligned_d)
         // Memory values must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, memA=0x%08x, memB=0x%08x)\n\r",
                (success != 0 && *addr_aligned_d == init_val_d && *addr_other_d == init_val_d) ? "PASSED" : "FAILED",
                success, *addr_aligned_d, *addr_other_d);
@@ -446,7 +440,6 @@ int main(int argc, char* argv[]) {
 
         // Second SC.D executed immediately after must fail (not valid LR.D anymore) --> success2 != 0 
         // Memory must contain the value from the first SC.D
-        
         printf("TEST RESULT: %s (SC1=%d, SC2=%d, mem=0x%016llx))\n\r",
                (success == 0 && success2 != 0) ? "PASSED" : "FAILED",
                success, success2, *addr_aligned_d);
@@ -479,7 +472,6 @@ int main(int argc, char* argv[]) {
 
         // LR.D/SC.D sequence must fail due to misalignment
         // SC.D should not modify memory
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx)\n\r",
                (*addr_misaligned_d != new_val_d) ? "PASSED" : "FAILED",
                success, *addr_misaligned_d);
@@ -509,7 +501,6 @@ int main(int argc, char* argv[]) {
 
         // SC.D tied to the first LR.D (addr_aligned_d) must fail (reservation lost)
         // Memory must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx))\n\r",
                (success_first != 0) ? "PASSED" : "FAILED",
                success_first, *addr_aligned_d);
@@ -573,7 +564,6 @@ int main(int argc, char* argv[]) {
         // If no LR.W is executed, SC.W must fail. This means:
         //   1. SC.W failure returns a non-zero value in 'success'
         //   2. Memory remains unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%08x)\n\r",
                (success != 0 && read_back == init_val_w) ? "PASSED" : "FAILED",
                success, read_back);
@@ -606,7 +596,6 @@ int main(int argc, char* argv[]) {
 
         // A SC on addr_other must fail (reservation is tied to addr_aligned_w)
         // Memory values must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, memA=0x%08x, memB=0x%08x)\n\r",
                (success != 0 && *addr_aligned_w == init_val_w && *addr_other_w == init_val_w) ? "PASSED" : "FAILED",
                success, *addr_aligned_w, *addr_other_w);
@@ -640,7 +629,6 @@ int main(int argc, char* argv[]) {
 
         // Second SC.W.rl executed immediately after must fail (not valid LR.W.aq anymore) --> success2 != 0 
         // Memory must contain the value from the first SC.W.rl
-        
         printf("TEST RESULT: %s (SC1=%d, SC2=%d, mem=0x%08x)\n\r",
                (success == 0 && success2 != 0) ? "PASSED" : "FAILED",
                success, success2, *addr_aligned_w);
@@ -673,7 +661,6 @@ int main(int argc, char* argv[]) {
 
         // LR.W.aq/SC.W.rl sequence must fail due to misalignment
         // SC.W should not modify memory
-
         printf("TEST RESULT: %s (SC=%d), mem=0x%08x\n\r",
                (*addr_misaligned_w != new_val_w) ? "PASSED" : "FAILED",
                success, *addr_misaligned_w);
@@ -703,7 +690,6 @@ int main(int argc, char* argv[]) {
 
         // SC.W.rl tied to the first LR.W.aq (addr_aligned_w) must fail (reservation lost)
         // Memory must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%08x)\n\r",
                (success_first != 0) ? "PASSED" : "FAILED",
                success_first, *addr_aligned_w);
@@ -767,7 +753,6 @@ int main(int argc, char* argv[]) {
         // If no LR.W.aqrl is executed, SC.W must fail. This means:
         //   1. SC.W.aqrl failure returns a non-zero value in 'success'
         //   2. Memory remains unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%08x)\n\r",
                (success != 0 && read_back == init_val_w) ? "PASSED" : "FAILED",
                success, read_back);
@@ -800,7 +785,6 @@ int main(int argc, char* argv[]) {
 
         // A SC on addr_other must fail (reservation is tied to addr_aligned_w)
         // Memory values must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, memA=0x%08x, memB=0x%08x)\n\r",
                (success != 0 && *addr_aligned_w == init_val_w && *addr_other_w == init_val_w) ? "PASSED" : "FAILED",
                success, *addr_aligned_w, *addr_other_w);
@@ -832,7 +816,6 @@ int main(int argc, char* argv[]) {
 
         // Second SC.W.rl executed immediately after must fail (not valid LR.W.aq anymore) --> success2 != 0 
         // Memory must contain the value from the first SC.W.rl
-        
         printf("TEST RESULT: %s (SC1=%d, SC2=%d, mem=0x%08x)\n\r",
                (success == 0 && success2 != 0) ? "PASSED" : "FAILED",
                success, success2, *addr_aligned_w);
@@ -864,7 +847,6 @@ int main(int argc, char* argv[]) {
 
         // LR.W.aqrl/SC.W.aqrl sequence must fail due to misalignment
         // SC.W should not modify memory
-
         printf("TEST RESULT: %s (SC=%d), mem=0x%08x\n\r",
                (*addr_misaligned_w != new_val_w) ? "PASSED" : "FAILED",
                success, *addr_misaligned_w);
@@ -894,7 +876,6 @@ int main(int argc, char* argv[]) {
 
         // SC.W.aqrl tied to the first LR.W.aqrl (addr_aligned_w) must fail (reservation lost)
         // Memory must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%08x)\n\r",
                (success_first != 0) ? "PASSED" : "FAILED",
                success_first, *addr_aligned_w);
@@ -902,6 +883,7 @@ int main(int argc, char* argv[]) {
 
         // === Postconditions ===
         *addr_aligned_w = init_val_w;
+
 
         // -------------------------------------------------------------------
         // 1. LR.D.AQ followed by SC.D.RL with same aligned address --> SUCCESS
@@ -931,6 +913,7 @@ int main(int argc, char* argv[]) {
         // === Postconditions ===
         *addr_aligned_d = init_val_d;  
 
+
         // -------------------------------------------------------------------
         // 2. SC.D.aq without LR.D.rl --> FAILURE
         // -------------------------------------------------------------------
@@ -956,7 +939,6 @@ int main(int argc, char* argv[]) {
         // If no LR.D.aq is executed, SC.D.rl must fail. This means:
         //   1. SC.D failure returns a non-zero value in 'success'
         //   2. Memory remains unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx))\n\r",
                (success != 0 && read_back == init_val_d) ? "PASSED" : "FAILED",
                success, read_back);
@@ -989,7 +971,6 @@ int main(int argc, char* argv[]) {
 
         // A SC on addr_other must fail (reservation is tied to addr_aligned_d)
         // Memory values must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, memA=0x%08x, memB=0x%08x)\n\r",
                (success != 0 && *addr_aligned_d == init_val_d && *addr_other_d == init_val_d) ? "PASSED" : "FAILED",
                success, *addr_aligned_d, *addr_other_d);
@@ -1023,7 +1004,6 @@ int main(int argc, char* argv[]) {
 
         // Second SC.D executed immediately after must fail (not valid LR.D anymore) --> success2 != 0 
         // Memory must contain the value from the first SC.D
-        
         printf("TEST RESULT: %s (SC1=%d, SC2=%d, mem=0x%016llx))\n\r",
                (success == 0 && success2 != 0) ? "PASSED" : "FAILED",
                success, success2, *addr_aligned_d);
@@ -1056,7 +1036,6 @@ int main(int argc, char* argv[]) {
 
         // LR.D.aq/SC.D.lr sequence must fail due to misalignment
         // SC.D.lr should not modify memory
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx)\n\r",
                (*addr_misaligned_d != new_val_d) ? "PASSED" : "FAILED",
                success, *addr_misaligned_d);
@@ -1086,7 +1065,6 @@ int main(int argc, char* argv[]) {
 
         // SC.D.rl tied to the first LR.D.aq (addr_aligned_d) must fail (reservation lost)
         // Memory must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx))\n\r",
                (success_first != 0) ? "PASSED" : "FAILED",
                success_first, *addr_aligned_d);
@@ -1124,9 +1102,6 @@ int main(int argc, char* argv[]) {
         *addr_aligned_d = init_val_d;   
 
 
-
-
-
         // -------------------------------------------------------------------
         // 2. SC.D.aq without LR.D.rl --> FAILURE
         // -------------------------------------------------------------------
@@ -1152,7 +1127,6 @@ int main(int argc, char* argv[]) {
         // If no LR.D.aqrl is executed, SC.D.aqrl must fail. This means:
         //   1. SC.D.aqrl failure returns a non-zero value in 'success'
         //   2. Memory remains unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx))\n\r",
                (success != 0 && read_back == init_val_d) ? "PASSED" : "FAILED",
                success, read_back);
@@ -1185,7 +1159,6 @@ int main(int argc, char* argv[]) {
 
         // A SC on addr_other must fail (reservation is tied to addr_aligned_d)
         // Memory values must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, memA=0x%08x, memB=0x%08x)\n\r",
                (success != 0 && *addr_aligned_d == init_val_d && *addr_other_d == init_val_d) ? "PASSED" : "FAILED",
                success, *addr_aligned_d, *addr_other_d);
@@ -1219,7 +1192,6 @@ int main(int argc, char* argv[]) {
 
         // Second SC.D.aqrl executed immediately after must fail (not valid LR.D.aqrl anymore) --> success2 != 0 
         // Memory must contain the value from the first SC.D
-        
         printf("TEST RESULT: %s (SC1=%d, SC2=%d, mem=0x%016llx))\n\r",
                (success == 0 && success2 != 0) ? "PASSED" : "FAILED",
                success, success2, *addr_aligned_d);
@@ -1252,7 +1224,6 @@ int main(int argc, char* argv[]) {
 
         // LR.D.aqrl/SC.D.aqlr sequence must fail due to misalignment
         // SC.D.aqlr should not modify memory
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx)\n\r",
                (*addr_misaligned_d != new_val_d) ? "PASSED" : "FAILED",
                success, *addr_misaligned_d);
@@ -1282,7 +1253,6 @@ int main(int argc, char* argv[]) {
 
         // SC.D.aqrl tied to the first LR.D.aqrl (addr_aligned_d) must fail (reservation lost)
         // Memory must remain unchanged
-
         printf("TEST RESULT: %s (SC=%d, mem=0x%016llx))\n\r",
                (success_first != 0) ? "PASSED" : "FAILED",
                success_first, *addr_aligned_d);
@@ -1290,7 +1260,6 @@ int main(int argc, char* argv[]) {
 
         // === Postconditions ===
         *addr_aligned_d = init_val_d;
-
 
     } // end loop
 
