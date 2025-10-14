@@ -173,13 +173,13 @@ for slave in ${slaves[*]}; do
         # Path to the system cache TCL config
         cache_config=${XILINX_IPS_ROOT}/common/xlnx_system_cache_0/config.tcl
 
-        # Update cache_BASEADDR in TCL
-        sed -E -i "s#(set cache_BASEADDR)[[:space:]]*\{[^}]+\}#\1 {0x$(printf '%x' $ddr_base)}#g" "${cache_config}"
-        echo "[CONFIG_XILINX] Updating cache_BASEADDR = 0x$(printf '%x' $ddr_base)"
+        # Update CACHE_BASEADDR in TCL
+        sed -E -i "s#(set CACHE_BASEADDR)[[:space:]]*\{[^}]+\}#\1 {0x$(printf '%x' $ddr_base)}#g" "${cache_config}"
+        echo "[CONFIG_XILINX] Updating CACHE_BASEADDR = 0x$(printf '%x' $ddr_base)"
 
-        # Update cache_HIGHADDR in TCL
-        sed -E -i "s#(set cache_HIGHADDR)[[:space:]]*\{[^}]+\}#\1 {0x$(printf '%x' $ddr_high)}#g" "${cache_config}"
-        echo "[CONFIG_XILINX] Updating cache_HIGHADDR = 0x$(printf '%x' $ddr_high)"
+        # Update CACHE_HIGHADDR in TCL
+        sed -E -i "s#(set CACHE_HIGHADDR)[[:space:]]*\{[^}]+\}#\1 {0x$(printf '%x' $ddr_high)}#g" "${cache_config}"
+        echo "[CONFIG_XILINX] Updating CACHE_HIGHADDR = 0x$(printf '%x' $ddr_high)"
     fi
 
     # Increment counter

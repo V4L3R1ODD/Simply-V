@@ -5,92 +5,11 @@
 
 #include "uninasoc.h"
 #include <stdint.h>
+#include "zalrsc.h"
 
 extern unsigned int _DDR_start;
 extern unsigned int _DDR_end;
 #define STEP        0x1000   // Step between test addresses
-
-    // LR.W / SC.W function
-    static inline int lr_w_sc_sequence(volatile unsigned int* addr, unsigned int new_val) {
-        int success;
-        asm volatile (
-            "lr.w t0, (%1)\n"
-            "sc.w %0, %2, (%1)\n"
-            : "=r"(success)
-            : "r"(addr), "r"(new_val)
-            : "t0", "memory"
-        );
-        return success;
-    }
-
-    // LR.W.aq / SC.W.rl function
-    static inline int lr_w_aq_sc_rl_sequence(volatile unsigned int* addr, unsigned int new_val) {
-        int success;
-        asm volatile (
-            "lr.w.aq t0, (%1)\n"
-            "sc.w.rl %0, %2, (%1)\n"
-            : "=r"(success)
-            : "r"(addr), "r"(new_val)
-            : "t0", "memory"
-        );
-        return success;
-    }
-
-    // LR.W.aqrl / SC.W.aqrl function
-    static inline int lr_w_aqrl_sc_aqrl_sequence(volatile unsigned int* addr, unsigned int new_val) {
-        int success;
-        asm volatile (
-            "lr.w.aqrl t0, (%1)\n"     // Full fence acquire+release at LR
-            "sc.w.aqrl %0, %2, (%1)\n" // Full fence acquire+release at SC
-            : "=r"(success)
-            : "r"(addr), "r"(new_val)
-            : "t0", "memory"
-        );
-        return success;
-    }
-
-#ifdef __LP64__
-
-    // LR.D / SC.D function
-    static inline int lr_d_sc_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
-        int success;
-        asm volatile (
-            "lr.d t0, (%1)\n"
-            "sc.d %0, %2, (%1)\n"
-            : "=r"(success)
-            : "r"(addr), "r"(new_val)
-            : "t0", "memory"
-        );
-        return success;
-    }
-
-    // LR.D.aq / SC.D.rl function
-    static inline int lr_d_aq_sc_rl_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
-        int success;
-        asm volatile (
-            "lr.d.aq t0, (%1)\n"
-            "sc.d.rl %0, %2, (%1)\n"
-            : "=r"(success)
-            : "r"(addr), "r"(new_val)
-            : "t0", "memory"
-        );
-        return success;
-    }
-
-    // LR.D.aqrl / SC.D.aqrl function
-    static inline int lr_d_aqrl_sc_aqrl_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
-        int success;
-        asm volatile (
-            "lr.d.aqrl t0, (%1)\n"
-            "sc.d.aqrl %0, %2, (%1)\n"
-            : "=r"(success)
-            : "r"(addr), "r"(new_val)
-            : "t0", "memory"
-        );
-        return success;
-    }
-    
-#endif
 
 int main(int argc, char* argv[]) {
 
@@ -100,7 +19,7 @@ int main(int argc, char* argv[]) {
     uintptr_t ddr_base = (uintptr_t)&_DDR_start;
     uintptr_t ddr_end  = (uintptr_t)&_DDR_end;
 
-    printf("=== LR/SC TESTS WORD + DOUBLEWORD ===\n\r");
+    printf("=== LR/SC TESTS WORD ===\n\r");
     printf("DDR range: 0x%08lx - 0x%08lx\n\n\r", ddr_base, ddr_end);
 
     unsigned int init_val_w = 0xAAAA5555;
@@ -142,6 +61,16 @@ int main(int argc, char* argv[]) {
         * On the MicroBlaze processor, this exception stops the processor execution.
         * On the CVA6 processor, however, the core is not interrupted: the store operation
         * is partially performed, and only the first byte of the intended value is actually written.
+        */
+
+        /*
+        * NOTE:
+        * On the MicroBlaze V processor, TEST3_W and TEST6_W return "FAILED"
+        * even though the memory content remains unchanged — which means the behavior
+        * is actually correct. 
+        * The tests are marked as FAILED because, in these specific cases,
+        * MicroBlaze V does not write a non-zero value to the destination register
+        * to indicate the failure of the SC instruction.
         */
 
 
@@ -712,6 +641,7 @@ int main(int argc, char* argv[]) {
 
     #ifdef __LP64__
 
+        printf("\n\n=== LR/SC TESTS DOUBLEWORD ===\n\n\r");
         // -------------------------------------------------------------------
         // 1. LR.D followed by SC.D with same aligned address --> SUCCESS
         // -------------------------------------------------------------------

@@ -22,8 +22,8 @@ create_ip -name system_cache -vendor xilinx.com -library ip -version 5.0 -module
 
 # Set the cache BASEADDR and HIGHADDR
 # WARNING: Do not change the following line, it is modified by config-based script
-set cache_BASEADDR {0x30000}
-set cache_HIGHADDR {0x3ffff}
+set CACHE_BASEADDR {0x30000}
+set CACHE_HIGHADDR {0x3ffff}
 
 set_property -dict [list \
   CONFIG.C_CACHE_LINE_LENGTH {32} \
@@ -35,8 +35,8 @@ set_property -dict [list \
   CONFIG.C_NUM_GENERIC_PORTS {1} \
   CONFIG.C_S0_AXI_GEN_ID_WIDTH $::env(MBUS_ID_WIDTH) \
   CONFIG.C_S0_AXI_GEN_ADDR_WIDTH $::env(MBUS_ADDR_WIDTH) \
-  CONFIG.C_BASEADDR $cache_BASEADDR \
-  CONFIG.C_HIGHADDR $cache_HIGHADDR \
+  CONFIG.C_BASEADDR $CACHE_BASEADDR \
+  CONFIG.C_HIGHADDR $CACHE_HIGHADDR \
   CONFIG.C_ENABLE_EXCLUSIVE {1} \
   CONFIG.C_CCIX0_CACHE_LINE_SIZE {128} \
   CONFIG.C_M0_AXI_THREAD_ID_WIDTH $::env(MBUS_ID_WIDTH) \
