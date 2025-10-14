@@ -1,8 +1,10 @@
 // Author: Valerio Di Domenico <valerio.didomenico@unina.it>
-// Description: Zalrsc tests' functions header file
+// Description:  Zalrsc tests' functions implementation file
+
+#include "zalrsc.h"
 
     // LR.W / SC.W function
-    static inline int lr_w_sc_sequence(volatile unsigned int* addr, unsigned int new_val) {
+    int lr_w_sc_sequence(volatile unsigned int* addr, unsigned int new_val) {
         int success;
         asm volatile (
             "lr.w t0, (%1)\n"
@@ -15,7 +17,7 @@
     }
 
     // LR.W.aq / SC.W.rl function
-    static inline int lr_w_aq_sc_rl_sequence(volatile unsigned int* addr, unsigned int new_val) {
+    int lr_w_aq_sc_rl_sequence(volatile unsigned int* addr, unsigned int new_val) {
         int success;
         asm volatile (
             "lr.w.aq t0, (%1)\n"
@@ -28,7 +30,7 @@
     }
 
     // LR.W.aqrl / SC.W.aqrl function
-    static inline int lr_w_aqrl_sc_aqrl_sequence(volatile unsigned int* addr, unsigned int new_val) {
+    int lr_w_aqrl_sc_aqrl_sequence(volatile unsigned int* addr, unsigned int new_val) {
         int success;
         asm volatile (
             "lr.w.aqrl t0, (%1)\n"     // Full fence acquire+release at LR
@@ -43,7 +45,7 @@
 #ifdef __LP64__
 
     // LR.D / SC.D function
-    static inline int lr_d_sc_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
+    int lr_d_sc_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
         int success;
         asm volatile (
             "lr.d t0, (%1)\n"
@@ -56,7 +58,7 @@
     }
 
     // LR.D.aq / SC.D.rl function
-    static inline int lr_d_aq_sc_rl_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
+    int lr_d_aq_sc_rl_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
         int success;
         asm volatile (
             "lr.d.aq t0, (%1)\n"
@@ -69,7 +71,7 @@
     }
 
     // LR.D.aqrl / SC.D.aqrl function
-    static inline int lr_d_aqrl_sc_aqrl_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
+    int lr_d_aqrl_sc_aqrl_sequence(volatile unsigned long long* addr, unsigned long long new_val) {
         int success;
         asm volatile (
             "lr.d.aqrl t0, (%1)\n"
@@ -82,4 +84,5 @@
     }
     
 #endif
+
 

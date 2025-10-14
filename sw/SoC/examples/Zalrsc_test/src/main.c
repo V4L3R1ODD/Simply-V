@@ -1,5 +1,5 @@
 // Author: Valerio Di Domenico <valerio.didomenico@unina.it>
-//Description:
+// Description:
 //   This program performs a memory access test over a defined DDR address range, validating both normal read/write accesses 
 //   and atomic LR/SC (Load-Reserved / Store-Conditional) accesses.
 
@@ -9,7 +9,6 @@
 
 extern unsigned int _DDR_start;
 extern unsigned int _DDR_end;
-#define STEP        0x1000   // Step between test addresses
 
 int main(int argc, char* argv[]) {
 
